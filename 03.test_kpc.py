@@ -9,25 +9,25 @@ import torch
 from utils.network1 import ActionBiLSTM
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-pose_model = YOLO("yolo11n-pose.pt")  # 원하는 모델을 다운로드 후 경로 수정 가능
+pose_model = YOLO("./models/yolo11n-pose.pt")  # 원하는 모델을 다운로드 후 경로 수정 가능
 
 # Actions 설정
 actions = np.array(['nothing', 'ready', 'stop', 'emergency'])  # 구분할 동작
 num_classes = len(actions)
 sequence_length = 15  # 프레임 길이
-input_size = 34
+input_size = 51
 threshold = 0.6      # 예측 임계값 
 
 
 # LSTM 모델 불러오기
 model = ActionBiLSTM(num_classes, sequence_length, input_size).to(device)
-model.load_state_dict(torch.load("./models/best_kp.pth", map_location=device))
+model.load_state_dict(torch.load("./models/best_kpc.pth", map_location=device))
 model.eval()
 
 # Keypoints 추출 함수
 def extract_keypoints(results):
     results = results.reshape(17, 3)  # (17, 3) -> x, y, confidence
-    pose = np.array([[res[0], res[1]] for res in results]).flatten()  # x, y만 사용
+    pose = np.array([[res[0], res[1], res[2]] for res in results]).flatten() 
     return pose
 
 # 웹캠 초기화
