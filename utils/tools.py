@@ -43,16 +43,21 @@ def drawkeypoints2(frame, keypoints, color=(0, 255, 0), thickness=5):
                 
     return frame
 
-def show2Dpose_h36m(frame, keypoints, colors=COLORS):
+def show2Dpose_h36m(frame, keypoints):
+    # color = (0, 0, 0)
 
     for keypoint in keypoints:
         # 신뢰도가 50% 이상인 포인트만 처리
         points = [(int(x), int(y)) if conf > 0.5 else None for x, y, conf in keypoint]
         
         # 관절 포인트를 그림
-        for point in points:
+        for i,point in enumerate(points):
+            if i == 8:
+                color = (0, 0, 255)
+            else:
+                color = (0, 0, 0)
             if point:  # 유효한 점일 때만 그림
-                cv2.circle(frame, point, 5, colors["joint"], -1)
+                cv2.circle(frame, point, 5, color, -1)
                 
     return frame
 
@@ -107,7 +112,7 @@ def coco_h36m(keypoints):
     # htps_keypoints: head(0:10), thorax(1:8), pelvis(2:0), spine(3:7)
     # Head (10의 x 값)
     valid_points = [k for k in keypoints[:, 1:5, 0][0] if k != 0]
-    htps_keypoints[:, 0, 0] = np.mean(valid_points) if valid_points else 0.0
+    htps_keypoints[:, 0, 0] = np.mean(valid_points) if valid_points else np.array([0.0])
 
     # Head (10의 y 값)
     valid_points_y = [k for k in keypoints[:, 1:3, 1][0] if k != 0]
@@ -115,28 +120,25 @@ def coco_h36m(keypoints):
     htps_keypoints[:, 0, 1] = keypoints[:, 0, 1] - 4 * abs(mean_y - keypoints[:, 0, 1])
 
     # Thorax (8)
-    thorax_points = keypoints[:, 5:7, :][~np.all(keypoints[:, 5:7, :] == 0, axis=2)]
-    htps_keypoints[:, 1, :] = np.mean(thorax_points, axis=0) if thorax_points.size else 0.0
-    htps_keypoints[:, 1, :] += (keypoints[:, 0, :] - htps_keypoints[:, 1, :]) / 3
+    thorax_points = keypoints[:, 5:7, :]
+    htps_keypoints[:, 1, :] = np.array([[0.0,0.0]]) if np.any(thorax_points == 0) else np.mean(thorax_points, axis=1)  
+    if not np.all(htps_keypoints[:, 1, :] == np.array([[0.0,0.0]])):
+        htps_keypoints[:, 1, :] += (keypoints[:, 0, :] - htps_keypoints[:, 1, :]) / 3
 
     # Pelvis (0)
     pelvis_points = keypoints[:, 11:13, :]
-    htps_keypoints[:, 2, :] = (
-        np.mean(pelvis_points, axis=1) if np.any(pelvis_points != 0) else 0.0
-    )
+    htps_keypoints[:, 2, :] = np.array([[0.0,0.0]]) if np.any(pelvis_points == 0) else np.mean(pelvis_points, axis=1)  
 
     # Spine (7)
     spine_points = keypoints[:, [5, 6, 11, 12], :]
-    htps_keypoints[:, 3, :] = (
-        0.0 if np.any(spine_points == 0) else np.mean(spine_points, axis=1)  
-    )
+    htps_keypoints[:, 3, :] = np.array([[0.0,0.0]]) if np.any(spine_points == 0) else np.mean(spine_points, axis=1)  
 
     # 최종 h36m 포맷에 맞게 keypoints 설정
     keypoints_h36m[:, spple_keypoints, :] = htps_keypoints
     keypoints_h36m[:, h36m_coco_order, :] = keypoints[:, coco_order, :]
 
-    # Spine 조정
-    keypoints_h36m[:, 8, 1] -= (np.mean(keypoints[:, 1:3, 1], axis=1, dtype=np.float32) - keypoints[:, 0, 1]) * 2 / 3
+    # Thorax 조정
+    # keypoints_h36m[:, 8, 1] -= (np.mean(keypoints[:, 1:3, 1], axis=1, dtype=np.float32) - keypoints[:, 0, 1]) * 2 / 3
 
     # 유효한 프레임 찾기
     valid_frames = np.where(np.sum(keypoints_h36m.reshape(-1, 34), axis=1) != 0)[0]
